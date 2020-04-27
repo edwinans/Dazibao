@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <netinet/in.h>
 
+#define HEADER_OFFSET 2
+
 #define TYPE_PAD1 0
 #define TYPE_PADN 1
 #define TYPE_NEIGHBOUR_REQ 2
