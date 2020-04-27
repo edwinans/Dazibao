@@ -1,14 +1,11 @@
 CC=gcc
-CFLAGS= -g -Wall -std=c11 -o 
+CFLAGS= -g -Wall -std=c11 -I -o 
 
 .PHONY:all 
-all: unitaire homogene random
+all: test
 
-unitaire:test_unitaire.c projet2019.c 
-	$(CC)  $(CFLAGS)  unitaire.o test_unitaire.c projet2019.c -lm
-
-
-
+test: test.o tlv.o
+	$(CC) -o test test.o tlv.o -I src 
 
 .PHONY:clean
 clean:

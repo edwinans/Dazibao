@@ -16,6 +16,7 @@
 #define TYPE_NODESTATE_REQ 7
 #define TYPE_NODESTATE 8
 #define TYPE_WARNING 9
+
 #define HASH_SIZE 16
 
 typedef u_int64_t node_id;
