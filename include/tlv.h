@@ -3,6 +3,8 @@
 
 #include <stdlib.h>
 #include <netinet/in.h>
+#include "types.h"
+
 
 #define HEADER_OFFSET 2
 
@@ -17,10 +19,9 @@
 #define TYPE_NODESTATE 8
 #define TYPE_WARNING 9
 
-#define HASH_SIZE 16
 
-typedef u_int64_t node_id;
-typedef int16_t seq_n;
+
+
 
 extern int tlv_pad1(u_int8_t **buffer);
 extern int tlv_padn(u_int8_t **buffer, u_int8_t n);

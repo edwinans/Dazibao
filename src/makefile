@@ -19,10 +19,10 @@ ODIR=obj
 
 LIBS=-lm
 
-_DEPS = tlv.h
+_DEPS = tlv.h hash.h
 DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-_OBJ = tlv.o test.o 
+_OBJ = tlv.o test.o hash.o sha224-256.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 
