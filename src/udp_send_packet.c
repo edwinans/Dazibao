@@ -1,19 +1,8 @@
 #include <stdlib.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 
-#define ISVALIDSOCKET(s) ((s) >= 0)
-#define CLOSESOCKET(s) close(s)
-#define SOCKET int
-#define GETSOCKETERRNO() (errno)
-
+#include "../include/network.h"
 
 int main() {
 
@@ -23,7 +12,7 @@ int main() {
     memset(&hints, 0, sizeof(hints));
     hints.ai_socktype = SOCK_DGRAM;
     struct addrinfo *peer_address;
-    if (getaddrinfo("jch.irif.fr", "1212", &hints, &peer_address)) {
+    if (getaddrinfo(JCH_IPV4, "1212", &hints, &peer_address)) {
         fprintf(stderr, "getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
         return 1;
     }
