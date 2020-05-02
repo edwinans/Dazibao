@@ -1,19 +1,7 @@
-# CC=gcc
-# CFLAGS= -g -Wall -std=c11 -I -o 
-
-# .PHONY:all 
-# all: test
-
-# test: test.o tlv.o
-# 	$(CC) -o test test.o tlv.o -I./src 
-
-# .PHONY:clean
-# clean:
-# 	@rm -rf *.o
-
-IDIR =../include
 CC=gcc
 CFLAGS= -g -Wall -std=c11 -I$(IDIR)
+
+IDIR =../include
 
 ODIR=obj
 
@@ -35,4 +23,4 @@ test: $(OBJ)
 .PHONY: clean
 
 clean:
-	rm -f $(ODIR)/*.o *~ core $(INCDIR)/*~ 
+	rm -f $(ODIR)/*.o *~ core test $(INCDIR)/*~ 

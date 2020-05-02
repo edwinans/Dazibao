@@ -1,7 +1,6 @@
 #ifndef TLV_H
 #define TLV_H
 
-#include <stdlib.h>
 #include <netinet/in.h>
 #include "types.h"
 
@@ -18,9 +17,6 @@
 #define TYPE_NODESTATE_REQ 7
 #define TYPE_NODESTATE 8
 #define TYPE_WARNING 9
-
-
-
 
 
 extern int tlv_pad1(u_int8_t **buffer);
