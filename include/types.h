@@ -11,13 +11,13 @@
 #define MAX_NBR 15
 
 typedef const uint64_t node_id;
-typedef int16_t seq_n;
+typedef uint16_t seq_n;
 
 
 typedef struct node {
     node_id id;
     seq_n seqno;
-    size_t size;
+    size_t data_len;
     uint8_t data[];
 } node_t;
 
@@ -31,7 +31,9 @@ typedef struct pair {
     node_id id;
     node_t node;
     neighbour_t neighbours[MAX_NBR];
-    node_t pub_data[100];
+    size_t nb_nodes;
+    size_t nodes_len;
+    node_t nodes[];
 } pair_t;
 
 typedef struct tlv {
@@ -43,11 +45,10 @@ typedef struct tlv {
 typedef struct packet{
     uint8_t magic;
     uint8_t version;
-    uint16_t body_length;
+    uint16_t body_len;
     tlv_t *first_tlv;
     node_t *dst;
 } packet_t;
-
 
 
 #endif
