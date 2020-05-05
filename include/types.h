@@ -5,20 +5,22 @@
 #include <stdbool.h>
 #include <time.h>
 
-#define HASH_SIZE 16
 #define MAGIC 95
 #define VERSION 1
+#define HASH_SIZE 16
 #define MAX_NBR 15
+#define MAX_DATA_LEN 195
+#define MAX_PACKET_SIZE 1024
 
-typedef const uint64_t node_id;
+typedef uint64_t node_id;
 typedef uint16_t seq_n;
 
 
 typedef struct node {
-    node_id id;
+    node_id id; //0 if not present, else >0
     seq_n seqno;
     size_t data_len;
-    uint8_t data[];
+    uint8_t data[MAX_DATA_LEN];
 } node_t;
 
 typedef struct neighbour {

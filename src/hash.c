@@ -50,9 +50,11 @@ int net_hash(uint8_t *hash, node_t nodes[], size_t nb, size_t size){
     int act_nb = 0;
     for(int i = 0; i<size; i++){
         if(nodes[i].id){
+            if(nodes[i].id != i)
+                return -1;
             if(node_hash(hash, nodes+i) < 0)
                 return -1;
-            memcpy(content + act_nb, hash, HASH_SIZE);
+            memcpy(content + 2*act_nb, hash, HASH_SIZE);
             act_nb++;
         }
     }
