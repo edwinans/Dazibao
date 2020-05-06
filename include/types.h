@@ -8,6 +8,7 @@
 #define MAGIC 95
 #define VERSION 1
 #define HASH_SIZE 16
+#define INIT_NODES_LEN 100
 #define MAX_NBR 15
 #define MAX_DATA_LEN 195
 #define MAX_PACKET_SIZE 1024
@@ -31,11 +32,11 @@ typedef struct neighbour {
 
 typedef struct pair {
     node_id id;
-    node_t node;
+    size_t nb_neighbours;
     neighbour_t neighbours[MAX_NBR];
     size_t nb_nodes;
     size_t nodes_len;
-    node_t nodes[];
+    node_t *nodes;
 } pair_t;
 
 typedef struct tlv {

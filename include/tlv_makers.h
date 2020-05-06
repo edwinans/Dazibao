@@ -1,5 +1,5 @@
-#ifndef TLV_H
-#define TLV_H
+#ifndef TLV_MAKERS_H
+#define TLV_MAKERS_H
 
 #include <netinet/in.h>
 #include "types.h"

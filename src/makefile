@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS= -g -Wall -std=c11 -I$(IDIR)
+CFLAGS= -g -Wall -I$(IDIR)
 
 IDIR =../include
 
@@ -7,20 +7,25 @@ ODIR=obj
 
 LIBS=-lm
 
-_DEPS = tlv.h hash.h
+_DEPS = network.h tlv_makers.h hash.h 
 DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-_OBJ = tlv.o test.o hash.o sha224-256.o
+_OBJ = tlv_makers.o core.o hash.o sha224-256.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 
 $(ODIR)/%.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-test: $(OBJ)
+all: core test
+
+core: $(OBJ)
+	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+
+test: tlv_makers.o test.o hash.o sha224-256.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
 .PHONY: clean
 
 clean:
-	rm -f $(ODIR)/*.o *~ core test $(INCDIR)/*~ 
+	rm -f $(ODIR)/*.o *~ *.o* core test $(INCDIR)/*~ 
