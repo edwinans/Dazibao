@@ -47,19 +47,11 @@ int net_hash(uint8_t *hash, node_t nodes[], size_t nb, size_t size){
     if(content == NULL)
         return -1;
 
-    int act_nb = 0;
-    for(int i = 0; i<size; i++){
-        if(nodes[i].id){
-            if(nodes[i].id != i)
-                return -1;
-            if(node_hash(hash, nodes+i) < 0)
-                return -1;
-            memcpy(content + 2*act_nb, hash, HASH_SIZE);
-            act_nb++;
-        }
+    for(int i = 0; i<nb; i++){
+        if(node_hash(hash, nodes+i) < 0)
+            return -1;
+        memcpy(content + 2*i, hash, HASH_SIZE);
     }
-    if(act_nb != nb)
-        return -1;
     
     if(SHA128(hash, content, contentlen) < 0)
         return -1;

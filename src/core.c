@@ -31,7 +31,15 @@
 #include "../include/hash.h"
 #include "../include/tlv_makers.h"
 
-int init_pair(pair_t **my_pair, const char boot_host[], const char boot_port[]){
+int saddr6_cmp(struct sockaddr_in6* p1, struct sockaddr_in6* p2){
+    char s1[INET6_ADDRSTRLEN], s2[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6, &(p1->sin6_addr), s1, INET6_ADDRSTRLEN);
+    inet_ntop(AF_INET6, &(p2->sin6_addr), s2, INET6_ADDRSTRLEN);
+
+    return (!strcmp(s1, s2) && (p1->sin6_port == p2->sin6_port));
+}
+
+int init_pair(pair_t **my_pair){
     if ((*my_pair = malloc(sizeof(pair_t))) == NULL)
         return -1;
     pair_t *pair = *my_pair;
@@ -48,6 +56,10 @@ int init_pair(pair_t **my_pair, const char boot_host[], const char boot_port[]){
     }
     (pair->nodes)[0] = (node_t){pair->id, 0, 0, {0}};
 
+    return 0;
+}
+
+int init_neighbours(pair_t *pair, const char boot_host[], const char boot_port[]){
 
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
@@ -61,19 +73,35 @@ int init_pair(pair_t **my_pair, const char boot_host[], const char boot_port[]){
     }
 
     int i=0;
+    char s[INET6_ADDRSTRLEN];
     for(struct addrinfo *p = peer_address; p != NULL; p = p->ai_next) {
-        printf("addr: %d, len: %d\n", p->ai_addr->sa_family, p->ai_addrlen);
-        pair->neighbours[i++].addr = (struct sockaddr_in6*) p->ai_addr;
+        struct sockaddr_in6 *saddr6 = (struct sockaddr_in6*) p->ai_addr;
+        inet_ntop(AF_INET6, &(saddr6->sin6_addr), s, INET6_ADDRSTRLEN);
+        printf("permanent addr: %s | port : %d | len: %d\n", s, saddr6->sin6_port, p->ai_addrlen);
+
+        pair->neighbours[i].addr = saddr6;
+        pair->neighbours[i].is_permanent = 1;
+        pair->neighbours[i].last_data = time(0);
+        i++;
     }
     pair->nb_neighbours = i;
+
+    freeaddrinfo(peer_address);
 
     return 0;
 }
 
 int main(int argc, char const *argv[]){
-    pair_t* my_pair;
-    init_pair(&my_pair, JCH_HOST, UDP_DEF_PORT);
+    pair_t *my_pair;
+    if(init_pair(&my_pair) < 0){
+        printf("init_pair error\n");
+        return 0;
+    }
 
+    if(init_neighbours(my_pair, JCH_HOST, UDP_DEF_PORT) <0){
+        printf("init_neighbours error\n");
+        return 0;
+    }
     
     return 0;
 }
