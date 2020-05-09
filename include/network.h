@@ -9,11 +9,14 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include "types.h"
+
 #define ISVALIDSOCKET(s) ((s) >= 0)
 #define CLOSESOCKET(s) close(s)
 #define SOCKET int
 #define GETSOCKETERRNO() (errno)
 
+#define PMTU 1024
 #define JCH_HOST "jch.irif.fr"
 #define JCH_IPV6 "001:660:3301:9200::51c2:1b9b"
 #define JCH_IPV4 "81.194.27.155"

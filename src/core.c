@@ -31,7 +31,24 @@
 #include "../include/hash.h"
 #include "../include/tlv_makers.h"
 
-int saddr6_cmp(struct sockaddr_in6* p1, struct sockaddr_in6* p2){
+int send_packet_to(uint8_t *tlv, uint16_t size, neighbour_t *nbr, SOCKET s){
+    uint8_t *packet = malloc(size + 4);
+    if(packet == NULL)
+        return -1;
+    packet[0] = MAGIC;
+    packet[1] = VERSION;
+    int hsize = htons(size);
+    memcpy(packet + 2, &hsize, 2);
+    memcpy(packet + 4, tlv, size);
+
+    int rc = sendto(s, packet, size + 4, 0, (struct sockaddr*) nbr->addr, sizeof(struct sockaddr_in6));
+    if(rc < 0 || rc>PMTU)
+        return -1;
+        
+    return rc;
+}
+
+int saddr6_equals(struct sockaddr_in6* p1, struct sockaddr_in6* p2){
     char s1[INET6_ADDRSTRLEN], s2[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, &(p1->sin6_addr), s1, INET6_ADDRSTRLEN);
     inet_ntop(AF_INET6, &(p2->sin6_addr), s2, INET6_ADDRSTRLEN);
@@ -91,6 +108,61 @@ int init_neighbours(pair_t *pair, const char boot_host[], const char boot_port[]
     return 0;
 }
 
+int add_neighbour(pair_t *pair, struct sockaddr_in6* addr){
+    for(int i=0; i< pair->nb_neighbours; i++){
+        neighbour_t nbr = pair->neighbours[i];
+        if(saddr6_equals(addr, nbr.addr)){
+            nbr.last_data = time(0);
+            return 0;
+        }
+    }
+
+    if(pair->nb_neighbours >= MAX_NBR){
+        printf("limit of nbrs (%d) reached ; can not add new neighbour\n", MAX_NBR);
+        return -1;
+    }
+
+    neighbour_t new_nbr = {0, time(0), addr};
+    pair->neighbours[++pair->nb_neighbours] = new_nbr;
+
+    return 0;
+}
+
+int update_neighbours(pair_t *pair){
+    time_t now = time(0);
+    int init_nb = pair->nb_neighbours;
+
+    for(int i=0; i< pair->nb_neighbours; i++){
+        neighbour_t nbr = pair->neighbours[i];
+        if(!nbr.is_permanent && (now - nbr.last_data >70)){
+            memmove(pair->neighbours + 1, pair->neighbours + i + 1,
+                (pair->nb_neighbours - i - 1) * sizeof(neighbour_t));
+            pair->nb_neighbours--;
+            i--;
+        }
+    } 
+
+    return init_nb - pair->nb_neighbours;
+}
+
+int explore_neighbours(pair_t *pair, SOCKET s){
+    if(pair->nb_neighbours >=5)
+        return 0;
+    
+    srand(time(0));
+    neighbour_t rand_nbr = pair->neighbours[rand() % pair->nb_neighbours];
+    uint8_t *tlv;
+    int size;
+    if( (size = tlv_neighbour_req(&tlv)) < 0)
+        return -1;
+    
+    int packet_size;
+    if( (packet_size = send_packet_to(tlv, size, &rand_nbr, s)) < 0)
+        return -1;
+    
+    return packet_size;
+}
+
 int main(int argc, char const *argv[]){
     pair_t *my_pair;
     if(init_pair(&my_pair) < 0){
@@ -102,6 +174,21 @@ int main(int argc, char const *argv[]){
         printf("init_neighbours error\n");
         return 0;
     }
+
+    SOCKET socket_peer;
+    socket_peer = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (!ISVALIDSOCKET(socket_peer)) {
+        fprintf(stderr, "socket() failed. (%d)\n", GETSOCKETERRNO());
+        return 1;
+    }
+
+    explore_neighbours(my_pair, socket_peer);
+
+
     
+    free(my_pair->nodes);
+    free(my_pair);
+    CLOSESOCKET(socket_peer);
+
     return 0;
 }

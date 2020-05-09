@@ -47,7 +47,7 @@ int main() {
     // //set port
     // struct sockaddr_in local = {};
     // local.sin_family = AF_INET;
-    // local.sin_port = htons(4568);
+    // local.sin_port = htons(1212);
 
 
     // printf("Binding socket to corresponding port...\n");

@@ -11,7 +11,6 @@
 #define INIT_NODES_LEN 100
 #define MAX_NBR 15
 #define MAX_DATA_LEN 195
-#define MAX_PACKET_SIZE 1024
 
 typedef uint64_t node_id;
 typedef uint16_t seq_n;
@@ -50,7 +49,6 @@ typedef struct packet{
     uint8_t version;
     uint16_t body_len;
     tlv_t *first_tlv;
-    node_t *dst;
 } packet_t;
 
 
