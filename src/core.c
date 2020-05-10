@@ -26,13 +26,42 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include "../include/network.h"
 #include "../include/hash.h"
 #include "../include/tlv_makers.h"
 
+bool debug = 0;
+
+void print_addr(struct sockaddr_in6 *saddr6){
+    char s[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6, &(saddr6->sin6_addr), s, INET6_ADDRSTRLEN);
+    printf("addr6: %s | port : %d \n", s, ntohs(saddr6->sin6_port));
+}
+
+int checkpkt_hd(uint8_t *packet, uint16_t size){
+    uint8_t *itr = packet;
+    if(*itr != MAGIC)
+        return -1;
+    itr++;
+    if(*itr != VERSION)
+        return -1;
+    itr++;
+    uint16_t body_len = ntohs(*((uint16_t*) itr));
+    if(debug){
+        printf("chckpkt ; body-len :%d , size : %d\n", body_len, size);
+    }
+    
+    if(size > body_len + 4)
+        return -2;
+
+    return 0;
+}
+
 int send_packet_to(uint8_t *tlv, uint16_t size, neighbour_t *nbr, SOCKET s){
-    uint8_t *packet = malloc(size + 4);
+    uint8_t packet[size+4];
     if(packet == NULL)
         return -1;
     packet[0] = MAGIC;
@@ -41,10 +70,19 @@ int send_packet_to(uint8_t *tlv, uint16_t size, neighbour_t *nbr, SOCKET s){
     memcpy(packet + 2, &hsize, 2);
     memcpy(packet + 4, tlv, size);
 
-    int rc = sendto(s, packet, size + 4, 0, (struct sockaddr*) nbr->addr, sizeof(struct sockaddr_in6));
-    if(rc < 0 || rc>PMTU)
+    if(checkpkt_hd(packet, size+4) < 0)
+        return -1; 
+    if(debug){
+        printf("sending packet to nbr ->");
+        print_addr(nbr->addr);
+    }
+    int rc = sendto(s, packet, sizeof(packet), 0, (struct sockaddr*) nbr->addr, sizeof(struct sockaddr_in6));
+    if(rc < 0 || rc>PMTU){
+        fprintf(stderr, "error sending packet , nb_bytes: %d ; %s\n", rc,strerror( errno ));
         return -1;
+    }
         
+
     return rc;
 }
 
@@ -90,12 +128,10 @@ int init_neighbours(pair_t *pair, const char boot_host[], const char boot_port[]
     }
 
     int i=0;
-    char s[INET6_ADDRSTRLEN];
     for(struct addrinfo *p = peer_address; p != NULL; p = p->ai_next) {
         struct sockaddr_in6 *saddr6 = (struct sockaddr_in6*) p->ai_addr;
-        inet_ntop(AF_INET6, &(saddr6->sin6_addr), s, INET6_ADDRSTRLEN);
-        printf("permanent addr: %s | port : %d | len: %d\n", s, saddr6->sin6_port, p->ai_addrlen);
-
+        printf("permanent nbr added: ");
+        print_addr(saddr6);
         pair->neighbours[i].addr = saddr6;
         pair->neighbours[i].is_permanent = 1;
         pair->neighbours[i].last_data = time(0);
@@ -142,11 +178,12 @@ int update_neighbours(pair_t *pair){
         }
     } 
 
+    //return nb of deleted members
     return init_nb - pair->nb_neighbours;
 }
 
 int explore_neighbours(pair_t *pair, SOCKET s){
-    if(pair->nb_neighbours >=5)
+    if(pair->nb_neighbours >= 5)
         return 0;
     
     srand(time(0));
@@ -160,10 +197,69 @@ int explore_neighbours(pair_t *pair, SOCKET s){
     if( (packet_size = send_packet_to(tlv, size, &rand_nbr, s)) < 0)
         return -1;
     
+    free(tlv);
+
     return packet_size;
 }
 
+int handle_tlv_neighbour(pair_t *pair, uint8_t *tlv, uint16_t size, SOCKET s){
+    uint8_t *offset = tlv;
+    uint8_t type = *offset;
+    if(type != TYPE_NEIGHBOUR){
+        printf("bad tlv type ; NEIGHBOUR\n");
+        return -1;
+    }
+    offset++;
+
+    struct sockaddr_in6 *addr = malloc(sizeof(struct sockaddr_in6));
+    if(addr == NULL)
+        return -1;
+
+    size_t tlv_len = *offset;
+    offset++;
+
+    size_t true_tlv_len = sizeof(addr->sin6_addr) + sizeof(addr->sin6_port);
+    if(tlv_len != true_tlv_len){
+        printf("bad tlv_neighbour len %ld != 18", tlv_len);
+        return -1;
+    }
+
+    memset(addr, 0, sizeof(struct sockaddr_in6));
+    addr->sin6_family = AF_INET6;
+    memcpy(&addr->sin6_addr, offset, sizeof(addr->sin6_addr));
+    offset += sizeof(addr->sin6_addr);
+
+    in_port_t hport = ntohs(*offset);
+    memcpy(&addr->sin6_port, &hport, sizeof(addr->sin6_port));
+
+    neighbour_t dst_nbr = {0, 0, addr};
+
+    uint8_t *nethash_tlv;
+    uint8_t hash[HASH_SIZE*2];
+    if(net_hash(hash, pair->nodes, pair->nb_nodes, pair->nodes_len) < 0){
+        printf("bad network_hash in handle_tlv_neighbour function\n");
+        return -1;
+    }
+    int nethash_size = tlv_net_hash(&nethash_tlv, hash);
+    if(nethash_size < 0){
+        printf("malloc failed in tlv_net_hash ; handle_tlv_neighbour\n");
+        return -1;
+    }
+
+    if(send_packet_to(nethash_tlv, nethash_size, &dst_nbr, s) < 0)
+        return -1;
+    
+
+    free(addr);
+    free(nethash_tlv);
+
+    return 0;
+}
+
+
 int main(int argc, char const *argv[]){
+    if(argc>1 && !memcmp(argv[1], "-d", 2))  debug=1;
+
     pair_t *my_pair;
     if(init_pair(&my_pair) < 0){
         printf("init_pair error\n");
@@ -181,10 +277,47 @@ int main(int argc, char const *argv[]){
         fprintf(stderr, "socket() failed. (%d)\n", GETSOCKETERRNO());
         return 1;
     }
+    int rc = fcntl(socket_peer, F_GETFL);
+    if(rc < 0)
+        perror("socket in core :");
+    rc = fcntl(socket_peer, F_SETFL, rc | O_NONBLOCK);
+    if(rc < 0)
+        perror("socket in core :");
 
-    explore_neighbours(my_pair, socket_peer);
+    uint8_t response[PMTU];
 
+    fd_set master;
+    FD_ZERO(&master);
+    FD_SET(socket_peer, &master);
+    SOCKET max_socket = socket_peer;
 
+    while(1){
+
+        explore_neighbours(my_pair, socket_peer);
+
+        fd_set reads;
+        reads = master;
+        struct timeval to = {20, 0};
+        if (select(max_socket+1, &reads, 0, 0,&to) < 0) {
+            fprintf(stderr, "select() failed. (%d)\n", GETSOCKETERRNO());
+            return 1;
+        }
+
+        if(FD_ISSET(socket_peer, &reads)){
+            rc = recvfrom(socket_peer, response, PMTU, 0, NULL, NULL);
+            printf("Response %d bytes: \n", rc);
+
+            if(checkpkt_hd(response, rc) < 0){
+                printf("Bad packet header\n");
+                continue;
+            }
+            
+            if(handle_tlv_neighbour(my_pair, response + 4, rc - 4, socket_peer) < 0){
+                printf("core error\n");
+                break;
+            }
+        }
+    }
     
     free(my_pair->nodes);
     free(my_pair);

@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <time.h>
+#include <endian.h>
 
 #define MAGIC 95
 #define VERSION 1

@@ -18,7 +18,7 @@
 
 #define PMTU 1024
 #define JCH_HOST "jch.irif.fr"
-#define JCH_IPV6 "001:660:3301:9200::51c2:1b9b"
+#define JCH_IPV6 "2001:660:3301:9200::51c2:1b9b"
 #define JCH_IPV4 "81.194.27.155"
 #define UDP_DEF_PORT "1212"
 

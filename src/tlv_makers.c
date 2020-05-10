@@ -35,19 +35,19 @@ int tlv_neighbour_req(u_int8_t **buffer){
 }
 
 int tlv_neighbour(u_int8_t **buffer, const struct in6_addr *addr, u_int16_t port){
-    int size = HEADER_OFFSET + sizeof(addr) + sizeof(port);
+    int size = HEADER_OFFSET + sizeof(struct in6_addr) + sizeof(port);
     if ((*buffer = malloc(size)) == NULL)
         return -1;
 
     (*buffer)[0] = TYPE_NEIGHBOUR;
     (*buffer)[1] = size - HEADER_OFFSET;
     memcpy(*buffer + HEADER_OFFSET, addr, sizeof(struct in6_addr));
-    memcpy(*buffer + HEADER_OFFSET + sizeof(addr), &port, sizeof(port));
+    memcpy(*buffer + HEADER_OFFSET + sizeof(struct in6_addr), &port, sizeof(port));
     
     return size;
 }
 
-int tlv_net_hash(u_int8_t **buffer, const char *hash){
+int tlv_net_hash(u_int8_t **buffer, uint8_t *hash){
     int size = HEADER_OFFSET + HASH_SIZE;
     if ((*buffer = malloc(size)) == NULL)
         return -1;
@@ -69,7 +69,7 @@ int tlv_netstate_req(u_int8_t **buffer){
     return HEADER_OFFSET;
 }
 
-int tlv_node_hash(u_int8_t **buffer, node_id id, seq_n seqno, const char *hash){
+int tlv_node_hash(u_int8_t **buffer, node_id id, seq_n seqno, uint8_t *hash){
     int size = HEADER_OFFSET + sizeof(node_id) + sizeof(seqno) + HASH_SIZE;
     if ((*buffer = malloc(size)) == NULL)
         return -1;
@@ -99,7 +99,7 @@ int tlv_nodestate_req(u_int8_t **buffer, node_id id){
     return size;
 }
 
-int tlv_nodestate(u_int8_t **buffer, node_id id, seq_n seqno, const char *hash, const char *data, const u_int8_t datalen){
+int tlv_nodestate(u_int8_t **buffer, node_id id, seq_n seqno, uint8_t *hash, const char *data, const u_int8_t datalen){
     if(datalen>192)
         return -1;
     int size = HEADER_OFFSET + sizeof(node_id) + sizeof(seqno) + HASH_SIZE + datalen;
