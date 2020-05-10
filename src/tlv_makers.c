@@ -69,18 +69,21 @@ int tlv_netstate_req(u_int8_t **buffer){
     return HEADER_OFFSET;
 }
 
-int tlv_node_hash(u_int8_t **buffer, node_id id, seq_n seqno, uint8_t *hash){
-    int size = HEADER_OFFSET + sizeof(node_id) + sizeof(seqno) + HASH_SIZE;
-    if ((*buffer = malloc(size)) == NULL)
-        return -1;
+int tlv_node_hash(u_int8_t *buffer, node_id id, seq_n seqno, uint8_t *hash){
+    //this id is in host_order: generally little endian
+    
+    int size = HEADER_OFFSET + sizeof(node_id) + sizeof(seq_n) + HASH_SIZE;
 
-    (*buffer)[0] = TYPE_NODE_HASH;
-    (*buffer)[1] = size - HEADER_OFFSET;
+    buffer[0] = TYPE_NODE_HASH;
+    buffer[1] = size - HEADER_OFFSET;
 
-    u_int8_t *offset = *buffer + HEADER_OFFSET;
-    memcpy(offset, &id, sizeof(node_id));
+    seq_n hseqno = htons(seqno);
+    node_id hid = htobe64(id);
+
+    u_int8_t *offset = buffer + HEADER_OFFSET;
+    memcpy(offset, &hid, sizeof(node_id));
     offset += sizeof(node_id);
-    memcpy(offset, &seqno, sizeof(seq_n));
+    memcpy(offset, &hseqno, sizeof(seq_n));
     offset += sizeof(seq_n);
     memcpy(offset, hash, HASH_SIZE);
 
@@ -88,6 +91,7 @@ int tlv_node_hash(u_int8_t **buffer, node_id id, seq_n seqno, uint8_t *hash){
 }
 
 int tlv_nodestate_req(u_int8_t **buffer, node_id id){
+    //this id is in net_order : big_endian
     int size = HEADER_OFFSET + sizeof(node_id);
     if ((*buffer = malloc(size)) == NULL)
         return -1;
@@ -99,23 +103,33 @@ int tlv_nodestate_req(u_int8_t **buffer, node_id id){
     return size;
 }
 
-int tlv_nodestate(u_int8_t **buffer, node_id id, seq_n seqno, uint8_t *hash, const char *data, const u_int8_t datalen){
-    if(datalen>192)
+int tlv_nodestate(u_int8_t **buffer, node_id id, seq_n seqno, uint8_t *hash, uint8_t *data, const u_int8_t datalen){
+    //id and seqno parameters are in host_order: generally little endian
+    
+    if(datalen>MAX_DATA_LEN)
         return -1;
-    int size = HEADER_OFFSET + sizeof(node_id) + sizeof(seqno) + HASH_SIZE + datalen;
+
+    int size = HEADER_OFFSET + sizeof(node_id) + sizeof(seq_n) + HASH_SIZE + datalen;
     if ((*buffer = malloc(size)) == NULL)
         return -1;
 
     (*buffer)[0] = TYPE_NODESTATE;
     (*buffer)[1] = size - HEADER_OFFSET;
 
+    seq_n hseqno = htons(seqno);
+    node_id hid = htobe64(id);
+
     u_int8_t *offset = *buffer + HEADER_OFFSET;
-    memcpy(offset, &id, sizeof(node_id));
+
+    memcpy(offset, &hid, sizeof(node_id));
     offset += sizeof(node_id);
-    memcpy(offset, &seqno, sizeof(seq_n));
+
+    memcpy(offset, &hseqno, sizeof(seq_n));
     offset += sizeof(seq_n);
+
     memcpy(offset, hash, HASH_SIZE);
     offset += HASH_SIZE;
+
     memcpy(offset, data, datalen);
 
     return size;
