@@ -14,7 +14,7 @@ int main() {
     hints.ai_family = AF_INET6;
     hints.ai_flags = AI_V4MAPPED | AI_ALL;
     struct addrinfo *peer_address;
-    if (getaddrinfo(JCH_HOST, "1212", &hints, &peer_address)) {
+    if (getaddrinfo(LOCAL_HOST, "4242", &hints, &peer_address)) {
         fprintf(stderr, "getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
         return 1;
     }
@@ -59,14 +59,16 @@ int main() {
 
 
     //const char *message = "Hello World";
-    uint8_t packet[4];
+    uint8_t packet[6];
     packet[0] = 95;
     packet[1] = 1;
-    uint16_t zero = 0;
-    memcpy(packet+2, &zero, 2);
+    uint16_t hlen = htons(2);
+    memcpy(packet+2, &hlen, sizeof(hlen));
+    packet[4]= 2;
+    packet[5]=0;
 
     printf("Sending packet: ");
-    for (int i = 0; i < 4; i++){
+    for (int i = 0; i < sizeof(packet); i++){
         if (i > 0) printf(":");
             printf("%02X", packet[i]);
     }
@@ -80,8 +82,13 @@ int main() {
 
     uint8_t reply[1024];
     int rc = recvfrom(socket_peer, reply, 4096, 0, NULL, NULL);
+
     printf("Response %d bytes: \n", rc);
-    printf("%02X", reply[0]);
+    for (int i = 0; i < rc; i++){
+        if (i > 0) printf(":");
+            printf("%02X", reply[i]);
+    }
+    printf("\n");
 
     freeaddrinfo(peer_address);
     CLOSESOCKET(socket_peer);

@@ -34,6 +34,21 @@
 #include "../include/tlv_makers.h"
 
 bool debug = 0;
+uint8_t response[PMTU];
+
+int set_port(SOCKET s, in_port_t port){
+    struct sockaddr_in6 local = {};
+    local.sin6_family = AF_INET6;
+    local.sin6_port = htons(port);
+
+
+    printf("Binding socket to corresponding port (%d)...\n", port);
+    if ( bind(s,(struct sockaddr*)&local, sizeof(local))) {
+        fprintf(stderr, "bind() failed. (%d)\n", GETSOCKETERRNO());
+        return -1;
+    }
+    return 0;
+}
 
 void print_addr(struct sockaddr_in6 *saddr6){
     char s[INET6_ADDRSTRLEN];
@@ -78,7 +93,7 @@ int send_packet_to(uint8_t *tlv, uint16_t size, neighbour_t *nbr, SOCKET s){
     }
     int rc = sendto(s, packet, sizeof(packet), 0, (struct sockaddr*) nbr->addr, sizeof(struct sockaddr_in6));
     if(rc < 0 || rc>PMTU){
-        fprintf(stderr, "error sending packet , nb_bytes: %d ; %s\n", rc,strerror( errno ));
+        fprintf(stderr, "error sending packet , nb_bytes: %d ; %s\n", rc, strerror( errno ));
         return -1;
     }
         
@@ -166,8 +181,9 @@ int add_neighbour(pair_t *pair, struct sockaddr_in6* addr){
     }
 
     if(pair->nb_neighbours >= MAX_NBR){
-        printf("limit of nbrs (%d) reached ; can not add new neighbour\n", MAX_NBR);
-        return -1;
+        if(debug)
+            printf("limit of nbrs (%d) reached ; can not add new neighbour\n", MAX_NBR);
+        return 0;
     }
 
     neighbour_t new_nbr = {0, time(0), addr};
@@ -212,6 +228,42 @@ int explore_neighbours(pair_t *pair, SOCKET s){
     free(tlv);
 
     return packet_size;
+}
+
+int handle_tlv_neighbour_req(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_addr, SOCKET s ){
+    uint8_t type = tlv[0];
+    if(type != TYPE_NEIGHBOUR_REQ){
+        printf("bad tlv type ;NEIGHBOUR_REQ \n");
+        return -1;
+    }
+    uint8_t tlv_len = tlv[1];
+
+    uint8_t true_tlv_len = 0;
+    if(tlv_len != true_tlv_len){
+        printf("bad tlv_neighbour_req len %d != %d", tlv_len, true_tlv_len);
+        return -1;
+    }
+
+    srand(time(0));
+    neighbour_t rand_nbr = pair->neighbours[rand() % pair->nb_neighbours];
+
+    uint8_t *neighbour_tlv;
+    int nbrtlv_size = tlv_neighbour(&neighbour_tlv,
+        &rand_nbr.addr->sin6_addr,
+        rand_nbr.addr->sin6_port);
+    if(debug)
+        printf("nrbtlv_size : %d \n", nbrtlv_size);
+    if(nbrtlv_size < 0){
+        printf("malloc() failed in tlv_neighbour() ; handle_tlv_neighbour_req \n");
+        return -1;
+    }
+    neighbour_t dst_nbr = {0, 0, src_addr};
+
+    send_packet_to(neighbour_tlv, nbrtlv_size, &dst_nbr, s);  
+
+    free(neighbour_tlv);
+    
+    return 0;
 }
 
 int handle_tlv_neighbour(pair_t *pair, uint8_t *tlv, uint16_t size, SOCKET s){
@@ -356,14 +408,18 @@ int main(int argc, char const *argv[]){
         fprintf(stderr, "socket() failed. (%d)\n", GETSOCKETERRNO());
         return 1;
     }
-    int rc = fcntl(socket_peer, F_GETFL);
+    
+    int rc =set_port(socket_peer, 4242);
+
+
+
+    rc = fcntl(socket_peer, F_GETFL);
     if(rc < 0)
         perror("socket in core :");
     rc = fcntl(socket_peer, F_SETFL, rc | O_NONBLOCK);
     if(rc < 0)
         perror("socket in core :");
 
-    uint8_t response[PMTU];
 
     fd_set master;
     FD_ZERO(&master);
@@ -399,7 +455,7 @@ int main(int argc, char const *argv[]){
 
     //     if(FD_ISSET(socket_peer, &reads)){
     //         rc = recvfrom(socket_peer, response, PMTU, 0, NULL, NULL);
-    //         printf("Response %d bytes: \n", rc);
+    //         printf("Response %d bytes: \n", rc);5859 8310 9395 5879
 
     //         if(checkpkt_hd(response, rc) < 0){
     //             printf("Bad packet header\n");
@@ -419,3 +475,22 @@ int main(int argc, char const *argv[]){
 
     return 0;
 }
+
+
+
+
+//unit test tlv_nbr_req
+    // struct sockaddr_storage sender_addr;
+    // socklen_t client_len = sizeof(sender_addr);
+    // rc = recvfrom(socket_peer,
+    //         response, PMTU,
+    //         0,
+    //         (struct sockaddr*) &sender_addr, &client_len);
+
+    // printf("Received (%d bytes)\n",rc); 
+    // if(checkpkt_hd(response, rc) < 0){
+    //     printf("Bad packet header\n");
+    //     return 1;
+    // }
+    // handle_tlv_neighbour_req(my_pair, response +4,(struct sockaddr_in6*) &sender_addr,
+    //     socket_peer);
