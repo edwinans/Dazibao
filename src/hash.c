@@ -62,6 +62,10 @@ int net_hash(uint8_t *hash, node_t nodes[], size_t nb, size_t size){
     return 0;
 }
 
+bool hash_equals(uint8_t *hash1, uint8_t *hash2){
+    return !memcmp(hash1, hash2, HASH_SIZE);
+}
+
 void print_hash128(uint8_t *hash){
     for(int x = 0; x < HASH_SIZE ; x++)
         printf("%02x", hash[x]);

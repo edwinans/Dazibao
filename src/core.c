@@ -86,6 +86,18 @@ int send_packet_to(uint8_t *tlv, uint16_t size, neighbour_t *nbr, SOCKET s){
     return rc;
 }
 
+int send_pad1_to(neighbour_t *nbr, SOCKET s){
+    uint8_t *pad1_tlv;
+    int sz = tlv_pad1(&pad1_tlv);
+    if(send_packet_to(pad1_tlv, sz, nbr, s) < 0){
+        free(pad1_tlv);
+        return -1;
+    }
+    
+    free(pad1_tlv);
+    return 0;
+}
+
 int saddr6_equals(struct sockaddr_in6* p1, struct sockaddr_in6* p2){
     char s1[INET6_ADDRSTRLEN], s2[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, &(p1->sin6_addr), s1, INET6_ADDRSTRLEN);
@@ -256,6 +268,73 @@ int handle_tlv_neighbour(pair_t *pair, uint8_t *tlv, uint16_t size, SOCKET s){
     return 0;
 }
 
+int handle_tlv_nethash(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_addr, SOCKET s){
+    uint8_t my_hash[HASH_SIZE*2];
+    if(net_hash(my_hash, pair->nodes, pair->nb_nodes, pair->nodes_len) < 0){
+        printf("net_hash() failed in handle_tlv_nethash() \n");
+        return -1;
+    }
+
+    uint8_t *offset = tlv;
+    uint8_t type = *offset;
+    if(type != TYPE_NET_HASH){
+        printf("bad tlv type ; NET_HASH\n");
+        return -1;
+    }
+    offset++;
+
+    uint8_t tlv_len = *offset;
+    offset++;
+
+    uint8_t true_tlv_len = HASH_SIZE;
+    if(tlv_len != true_tlv_len){
+        printf("bad tlv_neighbour len %d != %d", tlv_len, true_tlv_len);
+        return -1;
+    }
+
+    uint8_t recvd_hash[HASH_SIZE];
+    memcpy(recvd_hash, offset, HASH_SIZE);
+
+    if(hash_equals(my_hash, recvd_hash)){
+        if(debug)
+            printf("same network hash recieved\n");
+    }
+    else{
+        uint8_t *netreq_tlv;
+        int netreq_size = tlv_netstate_req(&netreq_tlv);
+        if(netreq_size < 0){
+            printf("malloc() failed in tlv_netstate_req ; handle_tlv_nethash \n");
+            return -1;
+        }
+        neighbour_t dst_nbr = {0, 0, src_addr};
+
+        send_packet_to(netreq_tlv, netreq_size, &dst_nbr, s);
+
+        free(netreq_tlv);
+    }
+
+    return 0;
+}
+
+int flood_net_hash(pair_t *pair, SOCKET s){
+    uint8_t *nethash_tlv;
+    uint8_t hash[HASH_SIZE*2];
+    if(net_hash(hash, pair->nodes, pair->nb_nodes, pair->nodes_len) < 0){
+        printf("bad network_hash in flood_net_hash function\n");
+        return -1;
+    }
+    int nethash_size = tlv_net_hash(&nethash_tlv, hash);
+    if(nethash_size < 0){
+        printf("malloc() failed in tlv_net_hash() ; flood_net_hash()\n");
+        return -1;
+    }
+
+    for(int i=0; i< pair->nb_neighbours; i++){
+        send_packet_to(nethash_tlv, nethash_size, pair->neighbours + i, s);
+    }
+
+    return pair->nb_neighbours;
+}
 
 int main(int argc, char const *argv[]){
     if(argc>1 && !memcmp(argv[1], "-d", 2))  debug=1;
@@ -291,33 +370,48 @@ int main(int argc, char const *argv[]){
     FD_SET(socket_peer, &master);
     SOCKET max_socket = socket_peer;
 
-    while(1){
+    /* handle_nethash test : 
+    send_pad1_to(my_pair->neighbours, socket_peer);
 
-        explore_neighbours(my_pair, socket_peer);
+    struct sockaddr_storage sender_addr;
+    socklen_t client_len = sizeof(sender_addr);
+    rc = recvfrom(socket_peer,
+            response, PMTU,
+            0,
+            (struct sockaddr*) &sender_addr, &client_len);
 
-        fd_set reads;
-        reads = master;
-        struct timeval to = {20, 0};
-        if (select(max_socket+1, &reads, 0, 0,&to) < 0) {
-            fprintf(stderr, "select() failed. (%d)\n", GETSOCKETERRNO());
-            return 1;
-        }
+    printf("Received (%d bytes)\n",rc); 
 
-        if(FD_ISSET(socket_peer, &reads)){
-            rc = recvfrom(socket_peer, response, PMTU, 0, NULL, NULL);
-            printf("Response %d bytes: \n", rc);
+    handle_tlv_nethash(my_pair, response +4, (struct sockaddr_in6 *)&sender_addr, socket_peer); test*/
 
-            if(checkpkt_hd(response, rc) < 0){
-                printf("Bad packet header\n");
-                continue;
-            }
+
+    // while(1){
+
+    //     explore_neighbours(my_pair, socket_peer);
+
+    //     fd_set reads;
+    //     reads = master;
+    //     struct timeval to = {20, 0};
+    //     if (select(max_socket+1, &reads, 0, 0, &to) < 0) {
+    //         fprintf(stderr, "select() failed. (%d)\n", GETSOCKETERRNO());
+    //         return 1;
+    //     }
+
+    //     if(FD_ISSET(socket_peer, &reads)){
+    //         rc = recvfrom(socket_peer, response, PMTU, 0, NULL, NULL);
+    //         printf("Response %d bytes: \n", rc);
+
+    //         if(checkpkt_hd(response, rc) < 0){
+    //             printf("Bad packet header\n");
+    //             continue;
+    //         }
             
-            if(handle_tlv_neighbour(my_pair, response + 4, rc - 4, socket_peer) < 0){
-                printf("core error\n");
-                break;
-            }
-        }
-    }
+    //         if(handle_tlv_neighbour(my_pair, response + 4, rc - 4, socket_peer) < 0){
+    //             printf("core error\n");
+    //             break;
+    //         }
+    //     }
+    // }
     
     free(my_pair->nodes);
     free(my_pair);
