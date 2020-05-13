@@ -11,10 +11,15 @@
 
 #include "types.h"
 
+
 #define ISVALIDSOCKET(s) ((s) >= 0)
 #define CLOSESOCKET(s) close(s)
 #define SOCKET int
 #define GETSOCKETERRNO() (errno)
+
+#define MOD (1<<16)
+#define LARGER_MOD16(s1, s2) (!((s1 - s2) & (MOD/2)))
+#define SUM_MOD16(s1, s2) ((s1 + s2) & (65535))
 
 #define PMTU 1024
 #define JCH_HOST "jch.irif.fr"

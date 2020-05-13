@@ -11,7 +11,7 @@
 #define HASH_SIZE 16
 #define INIT_NODES_LEN 100
 #define MAX_NBR 15
-#define MAX_DATA_LEN 195
+#define MAX_DATA_LEN 192
 
 typedef uint64_t node_id;
 typedef uint16_t seq_n;

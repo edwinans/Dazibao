@@ -35,6 +35,7 @@
 
 bool debug = 0;
 
+
 int set_port(SOCKET s, in_port_t port){
     struct sockaddr_in6 local = {};
     local.sin6_family = AF_INET6;
@@ -131,7 +132,7 @@ int init_pair(pair_t **my_pair){
 
     srand(time(0));
     
-    pair->id = rand() % sizeof(uint64_t);
+    pair->id = rand();
 
     pair->nb_nodes = 1;
     pair->nodes_len = INIT_NODES_LEN;
@@ -545,6 +546,118 @@ int handle_tlv_nodesate_req(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src
     return -1;
 }
 
+int handle_tlv_nodestate(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_addr, SOCKET s){
+    if(tlv[0] != TYPE_NODESTATE){
+        printf("bad tlv type : NODE_STATE \n");
+        return -1;
+    }
+    uint8_t tlv_len = tlv[1];
+    if(tlv_len < sizeof(node_id) + sizeof(seq_n) + HASH_SIZE){
+        printf("tlv_len = %u < min tlv_len of node_state;\
+            in function handle_tlv_nodestate() \n", tlv_len);
+        return -1;
+    }
+    uint8_t datalen = tlv_len - sizeof(node_id) - sizeof(seq_n) - HASH_SIZE;
+    if(datalen > MAX_DATA_LEN){
+        printf("datalen = %u is larger than MAX_DATA_LEN = %d ;\
+            in function handle_tlv_nodestate() \n", datalen, MAX_DATA_LEN);
+        return -1;
+    }
+    uint8_t *offset = tlv + HEADER_OFFSET;
+    
+    node_id rec_id;
+    memcpy(&rec_id, offset, sizeof(node_id));
+    offset += sizeof(node_id);
+
+    seq_n nseqno, rec_seqno; 
+    memcpy(&nseqno, offset, sizeof(seq_n));
+    rec_seqno = ntohs(nseqno);
+    offset += sizeof(seq_n);
+
+    uint8_t rec_hash[HASH_SIZE*2], my_hash[HASH_SIZE*2];
+    memcpy(rec_hash, offset, HASH_SIZE);
+    offset += HASH_SIZE;
+
+    uint8_t rec_data[MAX_DATA_LEN] = {0};
+    memcpy(rec_data, offset, datalen);
+
+    int target_index=0;
+
+    for(int i=0; i< pair->nb_nodes; i++){
+        target_index = i;
+        node_t node = pair->nodes[i];
+
+        if(node.id > rec_id) //nodes[] should be dynamically sorted
+            break;
+
+        if(node.id == rec_id){
+            if(node_hash(my_hash, &node) < 0)
+                printf("node_hash() failed in handle_tlv_nodestate() \n");
+
+            if(!hash_equals(my_hash, rec_hash)){
+                if(debug)
+                    printf("recvd node_hash not equals for node_id: %ld \n", node.id);
+                
+                if(node.id == pair->id){
+                    if(LARGER_MOD16(rec_seqno, node.seqno)){
+                        pair->nodes[i].seqno = SUM_MOD16(rec_seqno, 1);
+
+                        if(debug){
+                            printf("seqno_replace_to(%d, %d) of node_%ld \n"\
+                                , node.seqno, pair->nodes[i].seqno, node.id);
+                        }
+                    }
+                    //node correspond to own pair->node
+                }
+                else{
+                    if(!(LARGER_MOD16(node.seqno, rec_seqno))){
+                        if(debug){
+                            printf("update existing node_%ld ... \n", node.id);
+                        }
+
+                        pair->nodes[i].seqno = rec_seqno;
+                        pair->nodes[i].data_len = datalen;
+                        memcpy(pair->nodes[i].data, rec_data, MAX_DATA_LEN);
+                    }
+                    //update node if necessary   
+                }
+                //corresponding node found
+            }
+
+            return 0;
+        }
+    }
+
+    //corresponding node not found 
+    if(pair->nb_nodes >= pair->nodes_len){ //nb of nodes reached the capacity
+        node_t *tmp_nodes = realloc(pair->nodes, 2 * sizeof(node_t) * pair->nodes_len);
+        if(tmp_nodes == NULL){
+            printf("realloc() failed in handle_tlv_nodetate() ; \n");
+            return -1;
+        }
+
+        pair->nodes = tmp_nodes;
+        pair->nodes_len *=2;
+    }
+
+    memmove(pair->nodes + target_index + 1, 
+        pair->nodes + target_index,
+        sizeof(node_t) * (pair->nb_nodes - target_index));
+    
+    pair->nb_nodes++;
+    pair->nodes[target_index].id = rec_id;
+    pair->nodes[target_index].seqno = rec_seqno;
+    pair->nodes[target_index].data_len =datalen;
+    memcpy(pair->nodes + target_index, rec_data, MAX_DATA_LEN);
+
+    if(debug){
+        printf("node added successfully ::  \n");
+        print_node(pair->nodes[target_index]);
+    }
+
+    return 0;
+}
+
 int handle_tlv_warning(u_int8_t *tlv){
     if(tlv[0] != TYPE_WARNING){
         printf("bad tlv_warning type! \n");
@@ -606,9 +719,9 @@ int main(int argc, char const *argv[]){
     int rc = set_port(socket_peer, 4242);
     
     uint8_t response[PMTU];
-   // handle_netstate_req test : 
-    flood_net_hash(my_pair, socket_peer);
-    
+   // handle_node_state test : 
+    send_pad1_to(my_pair->neighbours, socket_peer);
+
     struct sockaddr_storage sender_addr;
     socklen_t client_len = sizeof(sender_addr);
     rc = recvfrom(socket_peer,
@@ -616,18 +729,27 @@ int main(int argc, char const *argv[]){
             0,
             (struct sockaddr*) &sender_addr, &client_len);
 
-    printf("<- Received (%d bytes)\n", rc); 
-    printf(" tlv_type;; %d \n", response[4]);
-    handle_tlv_netstate_req(my_pair, response +4, (struct sockaddr_in6 *)&sender_addr, socket_peer); 
+    printf("<-Received (%d bytes)\n",rc); 
 
+    handle_tlv_nethash(my_pair, response +4, (struct sockaddr_in6 *)&sender_addr, socket_peer);
 
     rc = recvfrom(socket_peer,
-            response, PMTU,
-            0,
-            (struct sockaddr*) &sender_addr, &client_len);
-    printf("<- Received (%d bytes)\n", rc); 
-    printf(" tlv_type;; %d \n", response[4]);
-    handle_tlv_nodesate_req(my_pair, response+4, (struct sockaddr_in6 *)&sender_addr, socket_peer);
+        response, PMTU,
+        0,
+        (struct sockaddr*) &sender_addr, &client_len);
+
+    printf("<-Received (%d bytes)\n",rc); 
+    handle_tlv_node_hash(my_pair, response +4,(struct sockaddr_in6 *)&sender_addr, socket_peer);
+    while(response[4] != TYPE_NODESTATE)
+    {
+        rc = recvfrom(socket_peer,
+        response, PMTU,
+        0,
+        (struct sockaddr*) &sender_addr, &client_len);
+
+        printf("<-Received (%d bytes)\n",rc); 
+    }
+    handle_tlv_nodestate(my_pair, response +4,(struct sockaddr_in6 *)&sender_addr, socket_peer);
     //test
 
 
@@ -715,3 +837,27 @@ rc = recvfrom(socket_peer,
 printf("Received (%d bytes)\n",rc); 
 
 handle_tlv_nethash(my_pair, response +4, (struct sockaddr_in6 *)&sender_addr, socket_peer); test*/
+
+//    // handle_netstate_req test : 
+//     flood_net_hash(my_pair, socket_peer);
+    
+//     struct sockaddr_storage sender_addr;
+//     socklen_t client_len = sizeof(sender_addr);
+//     rc = recvfrom(socket_peer,
+//             response, PMTU,
+//             0,
+//             (struct sockaddr*) &sender_addr, &client_len);
+
+//     printf("<- Received (%d bytes)\n", rc); 
+//     printf(" tlv_type;; %d \n", response[4]);
+//     handle_tlv_netstate_req(my_pair, response +4, (struct sockaddr_in6 *)&sender_addr, socket_peer); 
+
+
+//     rc = recvfrom(socket_peer,
+//             response, PMTU,
+//             0,
+//             (struct sockaddr*) &sender_addr, &client_len);
+//     printf("<- Received (%d bytes)\n", rc); 
+//     printf(" tlv_type;; %d \n", response[4]);
+//     handle_tlv_nodesate_req(my_pair, response+4, (struct sockaddr_in6 *)&sender_addr, socket_peer);
+//     //test
