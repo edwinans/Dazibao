@@ -55,6 +55,10 @@ void print_addr(struct sockaddr_in6 *saddr6){
     printf("addr6: %s | port : %d \n", s, ntohs(saddr6->sin6_port));
 }
 
+void print_node(node_t node){
+    printf("node_%ld : (%ld, %d, %.*s) \n", node.id, node.id, node.seqno, node.data_len, node.data);
+}
+
 int checkpkt_hd(uint8_t *packet, uint16_t size){
     uint8_t *itr = packet;
     if(*itr != MAGIC)
@@ -65,7 +69,7 @@ int checkpkt_hd(uint8_t *packet, uint16_t size){
     itr++;
     uint16_t body_len = ntohs(*((uint16_t*) itr));
     if(debug){
-        printf("chckpkt ; body-len :%d , size : %d\n", body_len, size);
+        printf("[chckpkt] ; body-len :%d , size : %d\n", body_len, size);
     }
     
     if(size > body_len + 4)
@@ -87,7 +91,7 @@ int send_packet_to(uint8_t *tlv, uint16_t size, neighbour_t *nbr, SOCKET s){
     if(checkpkt_hd(packet, size+4) < 0)
         return -1; 
     if(debug){
-        printf("sending packet to nbr ->");
+        printf("-> sending packet to nbr ->");
         print_addr(nbr->addr);
     }
     int rc = sendto(s, packet, sizeof(packet), 0, (struct sockaddr*) nbr->addr, sizeof(struct sockaddr_in6));
@@ -103,7 +107,7 @@ int send_packet_to(uint8_t *tlv, uint16_t size, neighbour_t *nbr, SOCKET s){
 int send_pad1_to(neighbour_t *nbr, SOCKET s){
     uint8_t *pad1_tlv;
     int sz = tlv_pad1(&pad1_tlv);
-    if(send_packet_to(pad1_tlv, sz, nbr, s) < 0){
+    if(sz<0 || send_packet_to(pad1_tlv, sz, nbr, s) < 0){
         free(pad1_tlv);
         return -1;
     }
@@ -127,7 +131,7 @@ int init_pair(pair_t **my_pair){
 
     srand(time(0));
     
-    pair->id = rand();
+    pair->id = rand() % sizeof(uint64_t);
 
     pair->nb_nodes = 1;
     pair->nodes_len = INIT_NODES_LEN;
@@ -135,8 +139,9 @@ int init_pair(pair_t **my_pair){
         free(pair);
         return -1;
     }
-    uint8_t data[]= "Hello World!";
-    (pair->nodes)[0] = (node_t){pair->id, 0, sizeof(data)-1, {0}};
+
+    uint8_t data[]= "ed!";
+    (pair->nodes)[0] = (node_t){pair->id, 1, sizeof(data) - 1, {0}};
     memcpy(&pair->nodes[0].data, data, sizeof(data)-1);
 
     return 0;
@@ -158,8 +163,11 @@ int init_neighbours(pair_t *pair, const char boot_host[], const char boot_port[]
     int i=0;
     for(struct addrinfo *p = peer_address; p != NULL; p = p->ai_next) {
         struct sockaddr_in6 *saddr6 = (struct sockaddr_in6*) p->ai_addr;
-        printf("permanent nbr added: ");
-        print_addr(saddr6);
+        if(debug){
+            printf("permanent nbr added: ");
+            print_addr(saddr6);
+        }
+        
         pair->neighbours[i].addr = saddr6;
         pair->neighbours[i].is_permanent = 1;
         pair->neighbours[i].last_data = time(0);
@@ -188,7 +196,7 @@ int add_neighbour(pair_t *pair, struct sockaddr_in6* addr){
     }
 
     neighbour_t new_nbr = {0, time(0), addr};
-    pair->neighbours[++pair->nb_neighbours] = new_nbr;
+    pair->neighbours[pair->nb_neighbours++] = new_nbr;
 
     return 0;
 }
@@ -202,6 +210,7 @@ int update_neighbours(pair_t *pair){
         if(!nbr.is_permanent && (now - nbr.last_data >70)){
             memmove(pair->neighbours + 1, pair->neighbours + i + 1,
                 (pair->nb_neighbours - i - 1) * sizeof(neighbour_t));
+
             pair->nb_neighbours--;
             i--;
         }
@@ -442,9 +451,9 @@ int handle_tlv_node_hash(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_ad
     }
     uint8_t *offset = tlv + HEADER_OFFSET;
     
-    node_id hid, rec_id;
-    memcpy(&hid, offset, sizeof(node_id));
-    rec_id = be64toh(hid);
+    node_id rec_id;
+    memcpy(&rec_id, offset, sizeof(node_id));
+    //rec_id = be64toh(hid);
     offset += sizeof(node_id);
 
     seq_n hseqno, rec_seqno; //todo
@@ -475,7 +484,7 @@ int handle_tlv_node_hash(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_ad
 
     //sending tlv_node_state_req ...
     uint8_t *nodestate_req_tlv;
-    uint16_t nreq_tlv_size = tlv_nodestate_req(&nodestate_req_tlv, hid);
+    uint16_t nreq_tlv_size = tlv_nodestate_req(&nodestate_req_tlv, rec_id);
     if(nreq_tlv_size < 0){
         perror("malloc() failed in tlv_nodestate_req : handle_tlv_node_hash() \n");
         return -1;
@@ -489,19 +498,18 @@ int handle_tlv_node_hash(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_ad
 }
 
 int handle_tlv_nodesate_req(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_addr, SOCKET s){
-    // if(tlv[0] != TYPE_NODESTATE_REQ){
-    //     printf("bad tlv type : NODE_STATE_REQ \n");
-    //     return -1;
-    // }
+    if(tlv[0] != TYPE_NODESTATE_REQ){
+        printf("bad tlv type : NODE_STATE_REQ \n");
+        return -1;
+    }
     uint8_t tlv_len = tlv[1];
-    // if(tlv_len != sizeof(node_id)){
-    //     printf("incorrect tlv len: %u in handle_tlv_nodestate_req() \n", tlv_len);
-    //     return -1;
-    // }
+    if(tlv_len != sizeof(node_id)){
+        printf("incorrect tlv len: %u in handle_tlv_nodestate_req() \n", tlv_len);
+        return -1;
+    }
 
-    node_id hid, rec_id;
-    memcpy(&hid, tlv + 2, sizeof(node_id));
-    rec_id = be64toh(hid);
+    node_id rec_id;
+    memcpy(&rec_id, tlv + 2, sizeof(node_id));
     uint8_t hash[HASH_SIZE*2];
 
     uint8_t *nodestate_tlv;
@@ -511,7 +519,9 @@ int handle_tlv_nodesate_req(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src
     for(int i=0; i< pair->nb_nodes; i++){
         node_t node = pair->nodes[i];
 
-        if(1){
+        if(rec_id == node.id){
+            if(debug)
+                print_node(node);
             if(node_hash(hash, &node) < 0)
                 printf("node_hash() failed with node_id : %ld \n", node.id);
 
@@ -530,7 +540,7 @@ int handle_tlv_nodesate_req(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src
         }
     }
 
-    printf("don't find corresponding node (id=%ld) in node_table", rec_id);
+    printf("don't find corresponding node (id=%ld) in node_table \n", rec_id);
 
     return -1;
 }
@@ -564,6 +574,7 @@ int flood_net_hash(pair_t *pair, SOCKET s){
     }
 
     for(int i=0; i< pair->nb_neighbours; i++){
+        if(i==0)
         send_packet_to(nethash_tlv, nethash_size, pair->neighbours + i, s);
     }
 
@@ -592,8 +603,8 @@ int main(int argc, char const *argv[]){
         return 1;
     }
     
-    int rc =set_port(socket_peer, 4242);
-
+    int rc = set_port(socket_peer, 4242);
+    
     uint8_t response[PMTU];
    // handle_netstate_req test : 
     flood_net_hash(my_pair, socket_peer);
@@ -605,15 +616,17 @@ int main(int argc, char const *argv[]){
             0,
             (struct sockaddr*) &sender_addr, &client_len);
 
-    printf("Received (%d bytes)\n",rc); 
-
+    printf("<- Received (%d bytes)\n", rc); 
+    printf(" tlv_type;; %d \n", response[4]);
     handle_tlv_netstate_req(my_pair, response +4, (struct sockaddr_in6 *)&sender_addr, socket_peer); 
+
+
     rc = recvfrom(socket_peer,
             response, PMTU,
             0,
             (struct sockaddr*) &sender_addr, &client_len);
-    printf("Received (%d bytes)\n",rc); 
-    printf(" ;; %d \n", response[4]);
+    printf("<- Received (%d bytes)\n", rc); 
+    printf(" tlv_type;; %d \n", response[4]);
     handle_tlv_nodesate_req(my_pair, response+4, (struct sockaddr_in6 *)&sender_addr, socket_peer);
     //test
 

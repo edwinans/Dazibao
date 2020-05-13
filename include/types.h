@@ -18,9 +18,9 @@ typedef uint16_t seq_n;
 
 
 typedef struct node {
-    node_id id; //0 if not present, else >0
+    node_id id; 
     seq_n seqno;
-    size_t data_len;
+    int data_len;
     uint8_t data[MAX_DATA_LEN];
 } node_t;
 

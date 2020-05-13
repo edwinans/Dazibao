@@ -3,6 +3,7 @@
 
 #include "../include/tlv_makers.h"
 
+
 int tlv_pad1(u_int8_t **buffer){
     if ((*buffer = malloc(1)) == NULL)
         return -1;
@@ -78,10 +79,10 @@ int tlv_node_hash(u_int8_t *buffer, node_id id, seq_n seqno, uint8_t *hash){
     buffer[1] = size - HEADER_OFFSET;
 
     seq_n hseqno = htons(seqno);
-    node_id hid = htobe64(id);
+    //node_id hid = htobe64(id);
 
     u_int8_t *offset = buffer + HEADER_OFFSET;
-    memcpy(offset, &hid, sizeof(node_id));
+    memcpy(offset, &id, sizeof(node_id));
     offset += sizeof(node_id);
     memcpy(offset, &hseqno, sizeof(seq_n));
     offset += sizeof(seq_n);
@@ -117,11 +118,11 @@ int tlv_nodestate(u_int8_t **buffer, node_id id, seq_n seqno, uint8_t *hash, uin
     (*buffer)[1] = size - HEADER_OFFSET;
 
     seq_n hseqno = htons(seqno);
-    node_id hid = htobe64(id);
+    //node_id hid = htobe64(id);
 
     u_int8_t *offset = *buffer + HEADER_OFFSET;
 
-    memcpy(offset, &hid, sizeof(node_id));
+    memcpy(offset, &id, sizeof(node_id));
     offset += sizeof(node_id);
 
     memcpy(offset, &hseqno, sizeof(seq_n));

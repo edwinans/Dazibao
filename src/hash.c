@@ -18,26 +18,27 @@ int SHA128(uint8_t *hash, const uint8_t *content, const size_t contentlen){
 
 //h_i = h(node) = h(i, s, d)
 int node_hash(uint8_t *hash, node_t *node){
-    size_t contentlen = sizeof(node_id) + sizeof(seq_n) + sizeof(node->data_len);
+    size_t contentlen = sizeof(node_id) + sizeof(seq_n) + node->data_len;
     uint8_t *content = malloc(contentlen);
-    seq_n hseqno = htobe16(node->seqno);
-    node_id hnode_id = htobe64(node->id);
+    seq_n hseqno = htons(node->seqno);
+    //node_id hnode_id = htobe64(node->id);
 
     if(content == NULL)
         return -1;
 
     uint8_t *ptr = content;
-    memcpy(ptr, &hnode_id, sizeof(hnode_id));
-    ptr += sizeof(hnode_id);
-    memcpy(ptr, &hseqno, sizeof(hseqno));
-    ptr += sizeof(hseqno);
+    memcpy(ptr, &node->id, sizeof(node_id));
+    ptr += sizeof(node_id);
+    memcpy(ptr, &hseqno, sizeof(seq_n));
+    ptr += sizeof(seq_n);
     memcpy(ptr, node->data, node->data_len);
 
     if(SHA128(hash, content, contentlen) < 0)
         return -1;
     
+    print_hash128(hash);
     free(content);
-
+    
     return 0;
 }
 
