@@ -13,6 +13,8 @@
 #define MAX_NBR 15
 #define MAX_DATA_LEN 192
 
+extern bool debug;
+
 typedef uint64_t node_id;
 typedef uint16_t seq_n;
 
@@ -52,5 +54,8 @@ typedef struct packet{
     tlv_t *first_tlv;
 } packet_t;
 
+
+extern void print_addr(struct sockaddr_in6 *saddr6);
+extern void print_node(node_t node);
 
 #endif

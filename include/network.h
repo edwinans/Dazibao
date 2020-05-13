@@ -10,6 +10,7 @@
 #include <errno.h>
 
 #include "types.h"
+#include "hash.h"
 
 
 #define ISVALIDSOCKET(s) ((s) >= 0)
@@ -27,5 +28,9 @@
 #define JCH_IPV4 "81.194.27.155"
 #define LOCAL_HOST "127.0.0.1"
 #define UDP_DEF_PORT "1212"
+
+int send_packet_to(uint8_t *tlv, uint16_t size, neighbour_t *nbr, SOCKET s);
+int checkpkt_hd(uint8_t *packet, uint16_t size);
+
 
 #endif // !NETWROK_H

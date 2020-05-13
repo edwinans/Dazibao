@@ -7,10 +7,10 @@ ODIR=obj
 
 LIBS=-lm
 
-_DEPS = network.h tlv_makers.h hash.h 
+_DEPS = network.h tlv_makers.h tlv_handlers.h hash.h 
 DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-_OBJ = tlv_makers.o core.o hash.o sha224-256.o
+_OBJ = tlv_makers.o tlv_handlers.o core.o hash.o sha224-256.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 
