@@ -62,13 +62,7 @@ int send_pad1_to(neighbour_t *nbr, SOCKET s){
     return 0;
 }
 
-int saddr6_equals(struct sockaddr_in6* p1, struct sockaddr_in6* p2){
-    char s1[INET6_ADDRSTRLEN], s2[INET6_ADDRSTRLEN];
-    inet_ntop(AF_INET6, &(p1->sin6_addr), s1, INET6_ADDRSTRLEN);
-    inet_ntop(AF_INET6, &(p2->sin6_addr), s2, INET6_ADDRSTRLEN);
 
-    return (!strcmp(s1, s2) && (p1->sin6_port == p2->sin6_port));
-}
 
 
 int init_pair(pair_t **my_pair){
@@ -127,35 +121,19 @@ int init_neighbours(pair_t *pair, const char boot_host[], const char boot_port[]
     return 0;
 }
 
-int add_neighbour(pair_t *pair, struct sockaddr_in6* addr){
-    for(int i=0; i< pair->nb_neighbours; i++){
-        neighbour_t nbr = pair->neighbours[i];
-        if(saddr6_equals(addr, nbr.addr)){
-            nbr.last_data = time(0);
-            return 0;
-        }
-    }
 
-    if(pair->nb_neighbours >= MAX_NBR){
-        if(debug)
-            printf("limit of nbrs (%d) reached ; can not add new neighbour\n", MAX_NBR);
-        return 0;
-    }
-
-    neighbour_t new_nbr = {0, time(0), addr};
-    pair->neighbours[pair->nb_neighbours++] = new_nbr;
-
-    return 0;
-}
 
 int update_neighbours(pair_t *pair){
     time_t now = time(0);
+    double diff_t;
     int init_nb = pair->nb_neighbours;
 
     for(int i=0; i< pair->nb_neighbours; i++){
         neighbour_t nbr = pair->neighbours[i];
-        if(!nbr.is_permanent && (now - nbr.last_data >70)){
-            memmove(pair->neighbours + 1, pair->neighbours + i + 1,
+        diff_t = difftime(now, nbr.last_data);
+
+        if(!nbr.is_permanent && diff_t < 70){
+            memmove(pair->neighbours + i, pair->neighbours + i + 1,
                 (pair->nb_neighbours - i - 1) * sizeof(neighbour_t));
 
             pair->nb_neighbours--;
@@ -175,8 +153,10 @@ int explore_neighbours(pair_t *pair, SOCKET s){
     neighbour_t rand_nbr = pair->neighbours[rand() % pair->nb_neighbours];
     uint8_t *tlv;
     int size;
-    if( (size = tlv_neighbour_req(&tlv)) < 0)
+    if( (size = tlv_neighbour_req(&tlv)) < 0){
+        printf("malloc() failed in explore_neighbours() \n");
         return -1;
+    }
     
     int packet_size;
     if( (packet_size = send_packet_to(tlv, size, &rand_nbr, s)) < 0)
@@ -195,6 +175,7 @@ int flood_net_hash(pair_t *pair, SOCKET s){
         printf("bad network_hash in flood_net_hash function\n");
         return -1;
     }
+
     int nethash_size = tlv_net_hash(&nethash_tlv, hash);
     if(nethash_size < 0){
         printf("malloc() failed in tlv_net_hash() ; flood_net_hash()\n");
@@ -202,12 +183,16 @@ int flood_net_hash(pair_t *pair, SOCKET s){
     }
 
     for(int i=0; i< pair->nb_neighbours; i++){
-        if(i==0)
+        //if(!i)
         send_packet_to(nethash_tlv, nethash_size, pair->neighbours + i, s);
     }
 
+    free(nethash_tlv);
+
     return pair->nb_neighbours;
 }
+
+
 
 
 int main(int argc, char const *argv[]){
@@ -248,11 +233,14 @@ int main(int argc, char const *argv[]){
     FD_SET(socket_peer, &master);
     SOCKET max_socket = socket_peer;
 
-
+    struct sockaddr_storage sender_addr;
+    socklen_t sender_len = sizeof(sender_addr);
 
     while(1){
 
+        update_neighbours(my_pair);
         explore_neighbours(my_pair, socket_peer);
+        flood_net_hash(my_pair, socket_peer);
 
         fd_set reads;
         reads = master;
@@ -263,19 +251,19 @@ int main(int argc, char const *argv[]){
         }
 
         if(FD_ISSET(socket_peer, &reads)){
-            rc = recvfrom(socket_peer, response, PMTU, 0, NULL, NULL);
-            printf("<- Response %d bytes: \n", rc);
 
-            if(checkpkt_hd(response, rc) < 0){
-                printf("Bad packet header\n");
-                continue;
-            }
-            
-            if(handle_tlv_neighbour(my_pair, response + 4, rc - 4, socket_peer) < 0){
-                printf("core error\n");
-                break;
-            }
+            rc = recvfrom(socket_peer,
+                response, PMTU,
+                0,
+                (struct sockaddr*) &sender_addr, &sender_len);
+
+            printf("<-Received (%d bytes)\n",rc); 
+
+            handle_packet(my_pair, response, rc, (struct sockaddr_in6 *) &sender_addr, socket_peer);
+
         }
+
+        sleep(5);
     }
     
     free(my_pair->nodes);

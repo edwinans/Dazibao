@@ -17,5 +17,7 @@ int handle_tlv_node_hash(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_ad
 int handle_tlv_nodesate_req(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_addr, SOCKET s);
 int handle_tlv_nodestate(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_addr, SOCKET s);
 int handle_tlv_warning(u_int8_t *tlv);
+int handle_packet(pair_t *pair, uint8_t *packet, uint16_t p_size, struct sockaddr_in6 *src_addr, SOCKET s);
+
 
 #endif // !TLV_HANDLERS

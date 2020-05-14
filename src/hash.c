@@ -36,7 +36,6 @@ int node_hash(uint8_t *hash, node_t *node){
     if(SHA128(hash, content, contentlen) < 0)
         return -1;
     
-    print_hash128(hash);
     free(content);
     
     return 0;

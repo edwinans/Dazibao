@@ -26,7 +26,7 @@ int checkpkt_hd(uint8_t *packet, uint16_t size){
         printf("[chckpkt] ; body-len :%d , size : %d\n", body_len, size);
     }
     
-    if(size > body_len + 4)
+    if(size < body_len + 4)
         return -2;
 
     return 0;
@@ -56,6 +56,35 @@ int send_packet_to(uint8_t *tlv, uint16_t size, neighbour_t *nbr, SOCKET s){
         
 
     return rc;
+}
+
+static int saddr6_equals(struct sockaddr_in6* p1, struct sockaddr_in6* p2){
+    char s1[INET6_ADDRSTRLEN], s2[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6, &(p1->sin6_addr), s1, INET6_ADDRSTRLEN);
+    inet_ntop(AF_INET6, &(p2->sin6_addr), s2, INET6_ADDRSTRLEN);
+
+    return (!strcmp(s1, s2) && (p1->sin6_port == p2->sin6_port));
+}
+
+static int add_neighbour(pair_t *pair, struct sockaddr_in6* addr){
+    for(int i=0; i< pair->nb_neighbours; i++){
+        neighbour_t nbr = pair->neighbours[i];
+        if(saddr6_equals(addr, nbr.addr)){
+            nbr.last_data = time(0);
+            return 0;
+        }
+    }
+
+    if(pair->nb_neighbours >= MAX_NBR){
+        if(debug)
+            printf("limit of nbrs (%d) reached ; can not add new neighbour \n", MAX_NBR);
+        return 0;
+    }
+
+    neighbour_t new_nbr = {0, time(0), addr};
+    pair->neighbours[pair->nb_neighbours++] = new_nbr;
+
+    return 0;
 }
 
 
@@ -89,7 +118,7 @@ int handle_tlv_padn(uint8_t *tlv){
     return 0;
 }
 
-int handle_tlv_neighbour_req(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_addr, SOCKET s ){
+int handle_tlv_neighbour_req(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_addr, SOCKET s){
     uint8_t type = tlv[0];
     if(type != TYPE_NEIGHBOUR_REQ){
         printf("bad tlv type ;NEIGHBOUR_REQ \n");
@@ -275,9 +304,9 @@ int handle_tlv_node_hash(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_ad
     //rec_id = be64toh(hid);
     offset += sizeof(node_id);
 
-    seq_n hseqno, rec_seqno; //todo
+    seq_n hseqno; 
     memcpy(&hseqno, offset, sizeof(seq_n));
-    rec_seqno = ntohs(hseqno);
+    //seq_n rec_seqno = ntohs(hseqno); todo
     offset += sizeof(seq_n);
 
     uint8_t rec_hash[HASH_SIZE*2], my_hash[HASH_SIZE*2];
@@ -488,4 +517,81 @@ int handle_tlv_warning(u_int8_t *tlv){
         printf("Warning: %.*s\n", len, tlv + 2);
 
     return 0;
+}
+
+//the function that handle the tlv sequence in the packet
+int handle_packet(pair_t *pair, uint8_t *packet, uint16_t p_size, struct sockaddr_in6 *src_addr, SOCKET s){
+    if(checkpkt_hd(packet, p_size) < 0){
+        printf("Bad packet header\n");
+        return -1;
+    }
+
+    if(debug)
+        printf("trying to add new neighbour... \n");
+    add_neighbour(pair, src_addr);
+
+    uint16_t body_len = ntohs(*((uint16_t*) (packet + 2)));
+    uint8_t *offset = packet + 4;
+
+    uint8_t tlv[PMTU] = {0};
+    uint8_t tlv_type, tlv_size, tlv_len;
+
+    while(body_len > 0){
+        tlv_type = offset[0];
+        tlv_len = offset[1];
+        tlv_size = tlv_len + HEADER_OFFSET;
+        memcpy(tlv, offset, tlv_size);
+
+        switch (tlv_type){
+
+            case TYPE_PAD1:
+                handle_tlv_pad1(tlv);
+                break;
+
+            case TYPE_PADN:
+                handle_tlv_padn(tlv);
+                break;
+
+            case TYPE_NEIGHBOUR_REQ:
+                handle_tlv_neighbour_req(pair, tlv, src_addr, s);
+                break;
+
+            case TYPE_NEIGHBOUR:
+                handle_tlv_neighbour(pair, tlv, tlv_size, s);
+                break;
+
+            case TYPE_NET_HASH:
+                handle_tlv_nethash(pair, tlv, src_addr, s);
+                break;
+
+            case TYPE_NETSTATE_REQ:
+                handle_tlv_netstate_req(pair, tlv, src_addr, s);
+                break;
+
+            case TYPE_NODE_HASH:
+                handle_tlv_node_hash(pair, tlv, src_addr, s);
+                break;
+
+            case TYPE_NODESTATE_REQ:
+                handle_tlv_nodesate_req(pair, tlv, src_addr, s);
+                break;
+
+            case TYPE_NODESTATE:
+                handle_tlv_nodestate(pair, tlv, src_addr, s);
+                break;
+
+            case TYPE_WARNING:
+                handle_tlv_warning(tlv);
+                break;
+
+            default:
+                printf("TLV_TYPE = %u, not found in this version! \n", tlv_type);
+                break;
+        }
+
+        body_len -= tlv_size;
+        offset += tlv_size;
+    }
+
+    return body_len;
 }
