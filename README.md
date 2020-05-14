@@ -1,7 +1,9 @@
 # Dazibao
 A Dazibao in C Network programming style.
 
-## config
+## Installation
+
+### config
 ```
 $cd src
 open the core.c file
@@ -13,11 +15,11 @@ to change the node_data:
 in function init_pair(...), just change data[] string.
 
 
-## build the project
+### build the project
 
 ```
 $ cd src
 $ make core       # compile the core file
 ./core            # run in normal mode
-./core		  # run in deubg mode (console logs)	
+./core -d	        # run in deubg mode (console logs)	
 ```
