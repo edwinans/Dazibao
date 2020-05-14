@@ -64,7 +64,6 @@ int send_pad1_to(neighbour_t *nbr, SOCKET s){
 
 
 
-
 int init_pair(pair_t **my_pair){
     if ((*my_pair = malloc(sizeof(pair_t))) == NULL)
         return -1;
@@ -81,8 +80,8 @@ int init_pair(pair_t **my_pair){
         return -1;
     }
 
-    uint8_t data[]= "ed!";
-    (pair->nodes)[0] = (node_t){pair->id, 1, sizeof(data) - 1, {0}};
+    uint8_t data[]= "Le projet en 2 semaines!";
+    (pair->nodes)[0] = (node_t){pair->id, 0, sizeof(data) - 1, {0}};
     memcpy(&pair->nodes[0].data, data, sizeof(data)-1);
 
     return 0;
@@ -183,7 +182,7 @@ int flood_net_hash(pair_t *pair, SOCKET s){
     }
 
     for(int i=0; i< pair->nb_neighbours; i++){
-        //if(!i)
+        if(!i)
         send_packet_to(nethash_tlv, nethash_size, pair->neighbours + i, s);
     }
 
@@ -199,6 +198,7 @@ int main(int argc, char const *argv[]){
     if(argc>1 && !memcmp(argv[1], "-d", 2))  debug=1;
 
     pair_t *my_pair;
+
     if(init_pair(&my_pair) < 0){
         printf("init_pair error\n");
         return 0;
@@ -236,6 +236,7 @@ int main(int argc, char const *argv[]){
     struct sockaddr_storage sender_addr;
     socklen_t sender_len = sizeof(sender_addr);
 
+
     while(1){
 
         update_neighbours(my_pair);
@@ -266,6 +267,7 @@ int main(int argc, char const *argv[]){
         sleep(5);
     }
     
+
     free(my_pair->nodes);
     free(my_pair);
     CLOSESOCKET(socket_peer);
