@@ -21,5 +21,5 @@ in function init_pair(...), just change data[] string.
 $ cd src
 $ make core       # compile the core file
 ./core            # run in normal mode
-./core -d	        # run in deubg mode (console logs)	
+./core -d	  # run in deubg mode (console logs)	
 ```

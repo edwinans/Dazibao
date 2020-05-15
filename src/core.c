@@ -264,7 +264,7 @@ int main(int argc, char const *argv[]){
 
         }
 
-        sleep(5);
+        sleep(1);
     }
     
 
