@@ -182,7 +182,7 @@ int flood_net_hash(pair_t *pair, SOCKET s){
     }
 
     for(int i=0; i< pair->nb_neighbours; i++){
-        if(!i)
+        //if(!i)
         send_packet_to(nethash_tlv, nethash_size, pair->neighbours + i, s);
     }
 
