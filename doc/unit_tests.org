@@ -1,0 +1,35 @@
+** here are some unit test of handlers… *
+
+// handle_node_state test : send_pad1_to(my_pair->neighbours, socket_peer);
+
+struct sockaddr_storage sender_addr; socklen_t client_len = sizeof(sender_addr); rc = recvfrom(socket_peer, response, PMTU, 0, (struct sockaddr*) &sender_addr, &client_len);
+
+printf(“<-Received (%d bytes)\n”,rc);
+
+handle_tlv_nethash(my_pair, response +4, (struct sockaddr_in6 *)&sender_addr, socket_peer);
+
+rc = recvfrom(socket_peer, response, PMTU, 0, (struct sockaddr*) &sender_addr, &client_len);
+
+printf(“<-Received (%d bytes)\n”,rc); handle_tlv_node_hash(my_pair, response +4,(struct sockaddr_in6 *)&sender_addr, socket_peer); while(response[4] != TYPE_NODESTATE) { rc = recvfrom(socket_peer, response, PMTU, 0, (struct sockaddr*) &sender_addr, &client_len);
+
+printf(“<-Received (%d bytes)\n”,rc); } handle_tlv_nodestate(my_pair, response +4,(struct sockaddr_in6 *)&sender_addr, socket_peer); //handle_node_state
+
+//unit test tlv_nbr_req struct sockaddr_storage sender_addr; socklen_t client_len = sizeof(sender_addr); rc = recvfrom(socket_peer, response, PMTU, 0, (struct sockaddr*) &sender_addr, &client_len);
+
+printf(“Received (%d bytes)\n”,rc); if(checkpkt_hd(response, rc) < 0){ printf(“Bad packet header\n”); return 1; } handle_tlv_neighbour_req(my_pair, response +4,(struct sockaddr_in6*) &sender_addr, socket_peer); //tlv_nbr_req
+
+// handle_nethash test : send_pad1_to(my_pair->neighbours, socket_peer);
+
+struct sockaddr_storage sender_addr; socklen_t client_len = sizeof(sender_addr); rc = recvfrom(socket_peer, response, PMTU, 0, (struct sockaddr*) &sender_addr, &client_len);
+
+printf(“Received (%d bytes)\n”,rc);
+
+handle_tlv_nethash(my_pair, response +4, (struct sockaddr_in6 *)&sender_addr, socket_peer); //handle_nethash
+
+//handle_netstate_req test : flood_net_hash(my_pair, socket_peer);
+
+struct sockaddr_storage sender_addr; socklen_t client_len = sizeof(sender_addr); rc = recvfrom(socket_peer, response, PMTU, 0, (struct sockaddr*) &sender_addr, &client_len);
+
+printf(“<- Received (%d bytes)\n”, rc); printf(” tlv_type;; %d \n”, response[4]); handle_tlv_netstate_req(my_pair, response +4, (struct sockaddr_in6 *)&sender_addr, socket_peer);
+
+rc = recvfrom(socket_peer, response, PMTU, 0, (struct sockaddr*) &sender_addr, &client_len); printf(“<- Received (%d bytes)\n”, rc); printf(” tlv_type;; %d \n”, response[4]); handle_tlv_nodesate_req(my_pair, response+4, (struct sockaddr_in6 *)&sender_addr, socket_peer); //handle_netstate_req

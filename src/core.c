@@ -69,7 +69,7 @@ int init_pair(pair_t **my_pair){
         return -1;
     pair_t *pair = *my_pair;
 
-    srand(time(0));
+    srand(time(0)); 
     
     pair->id = rand();
 
@@ -80,7 +80,7 @@ int init_pair(pair_t **my_pair){
         return -1;
     }
 
-    uint8_t data[]= "Le projet en 2 semaines!";
+    uint8_t data[]= "ok!";
     (pair->nodes)[0] = (node_t){pair->id, 0, sizeof(data) - 1, {0}};
     memcpy(&pair->nodes[0].data, data, sizeof(data)-1);
 

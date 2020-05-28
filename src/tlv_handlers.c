@@ -405,7 +405,7 @@ int handle_tlv_nodestate(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_ad
         return -1;
     }
     uint8_t datalen = tlv_len - sizeof(node_id) - sizeof(seq_n) - HASH_SIZE;
-    if(datalen > MAX_DATA_LEN){
+    if(datalen >= MAX_DATA_LEN){
         printf("datalen = %u is larger than MAX_DATA_LEN = %d ;\
             in function handle_tlv_nodestate() \n", datalen, MAX_DATA_LEN);
         return -1;
@@ -477,6 +477,8 @@ int handle_tlv_nodestate(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_ad
 
     //corresponding node not found 
     if(pair->nb_nodes >= pair->nodes_len){ //nb of nodes reached the capacity
+        if(pair->nb_nodes > 10*INIT_NODES_LEN)
+            return 0;
         node_t *tmp_nodes = realloc(pair->nodes, 2 * sizeof(node_t) * pair->nodes_len);
         if(tmp_nodes == NULL){
             printf("realloc() failed in handle_tlv_nodetate() ; \n");
@@ -495,7 +497,7 @@ int handle_tlv_nodestate(pair_t *pair, uint8_t *tlv, struct sockaddr_in6 *src_ad
     pair->nodes[target_index].id = rec_id;
     pair->nodes[target_index].seqno = rec_seqno;
     pair->nodes[target_index].data_len =datalen;
-    memcpy(pair->nodes + target_index, rec_data, MAX_DATA_LEN);
+    memcpy(pair->nodes[target_index].data, rec_data, MAX_DATA_LEN);
 
     if(debug){
         printf("node added successfully ::  \n");
@@ -534,7 +536,8 @@ int handle_packet(pair_t *pair, uint8_t *packet, uint16_t p_size, struct sockadd
     uint8_t *offset = packet + 4;
 
     uint8_t tlv[PMTU] = {0};
-    uint8_t tlv_type, tlv_size, tlv_len;
+    uint8_t tlv_type, tlv_len;
+    int tlv_size;
 
     while(body_len > 0){
         tlv_type = offset[0];

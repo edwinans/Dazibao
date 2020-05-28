@@ -1,6 +1,6 @@
 #include "../include/hash.h"
 
-
+//im-out tu lui donne le un pointeur(hash) il te le rempis avec le hash correspondant !
 int SHA128(uint8_t *hash, const uint8_t *content, const size_t contentlen){
     SHA256Context ctx;
 
@@ -16,7 +16,7 @@ int SHA128(uint8_t *hash, const uint8_t *content, const size_t contentlen){
     return 0;
 }
 
-//h_i = h(node) = h(i, s, d)
+//h_i = h(node) = h(i.s.d)
 int node_hash(uint8_t *hash, node_t *node){
     size_t contentlen = sizeof(node_id) + sizeof(seq_n) + node->data_len;
     uint8_t *content = malloc(contentlen);
