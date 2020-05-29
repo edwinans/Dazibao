@@ -133,7 +133,7 @@ int update_neighbours(pair_t *pair){
 
         if(!nbr.is_permanent && diff_t < 70){
             memmove(pair->neighbours + i, pair->neighbours + i + 1,
-                (pair->nb_neighbours - i - 1) * sizeof(neighbour_t));
+                (pair->nb_neighbours - i - 1) * sizeof(neighbour_t)); //decale la liste de voisin
 
             pair->nb_neighbours--;
             i--;
@@ -204,7 +204,7 @@ int main(int argc, char const *argv[]){
         return 0;
     }
 
-    if(init_neighbours(my_pair, JCH_HOST, UDP_DEF_PORT) <0){
+    if(init_neighbours(my_pair, "vps-63c87489.vps.ovh.net", "12321") <0){
         printf("init_neighbours error\n");
         return 0;
     }
